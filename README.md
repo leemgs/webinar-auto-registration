@@ -75,35 +75,105 @@ python -m http.server -d docs 8000
 > `data/webinars.json`은 **커밋되는 결과물**(진실의 원천)입니다. `pipeline`은 기존
 > 데이터와 **병합**하고(등록 상태·수동 경품 보존), 60일 지난 과거 웨비나는 정리합니다.
 
-## 구글 캘린더 설정 (OAuth 리프레시 토큰)
+## 구글 캘린더 설정 (OAuth 리프레시 토큰) — 따라하기
 
-1. Google Cloud Console에서 **Google Calendar API** 활성화.
-2. **OAuth 2.0 클라이언트 ID**(유형: 데스크톱 앱) 생성.
-3. 토큰 발급:
-   ```bash
-   export GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
-   python scripts/get_google_token.py
-   ```
-4. 출력된 `GOOGLE_REFRESH_TOKEN` 을 `.env` 또는 GitHub Secret 에 저장.
+> 링크를 클릭해 순서대로 진행하면 됩니다. 소요 5~10분. **한 번만** 하면 됩니다.
 
-> 인증 없이 쓰려면 `docs/webinars.ics` 를 구글 캘린더 **"URL로 추가"** 로 구독해도 됩니다.
+### 1단계 — Google Cloud 프로젝트 만들기
+- 👉 <https://console.cloud.google.com/projectcreate> 접속 → 이름 예: `webinar-calendar` → **만들기**.
+- 만든 프로젝트가 상단에 선택돼 있는지 확인.
 
-## GitHub 설정
+### 2단계 — Google Calendar API 활성화
+- 👉 <https://console.cloud.google.com/apis/library/calendar-json.googleapis.com> 접속 → **사용(Enable)** 클릭.
 
-### Secrets (Settings → Secrets and variables → Actions)
+### 3단계 — OAuth 동의 화면 구성
+- 👉 <https://console.cloud.google.com/apis/credentials/consent> 접속.
+- User Type: **External(외부)** 선택 → 만들기.
+- 앱 이름/사용자 지원 이메일/개발자 연락처만 채우고 저장하며 진행.
+- **Test users(테스트 사용자)** 에 **본인 Gmail 주소 추가**.
+- ⚠️ **중요**: 게시 상태가 **Testing** 이면 리프레시 토큰이 **7일 후 만료**됩니다.
+  계속 쓰려면 동의 화면에서 **"앱 게시(Publish app / 프로덕션으로 전환)"** 를 눌러
+  `In production` 상태로 두세요(개인 사용은 미인증 경고만 뜨고 그대로 사용 가능).
 
-| 이름 | 용도 |
-|---|---|
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` | 구글 캘린더 |
-| `GOOGLE_CALENDAR_ID` | 대상 캘린더(기본 `primary`) |
-| `SITE_<KEY>_USER`, `SITE_<KEY>_PASS` | 사이트별 로그인 (예: `SITE_DDTUBE_USER`) |
+### 4단계 — OAuth 클라이언트 ID 발급 (데스크톱 앱)
+- 👉 <https://console.cloud.google.com/apis/credentials> 접속.
+- **+ 사용자 인증 정보 만들기 → OAuth 클라이언트 ID** → 애플리케이션 유형 **데스크톱 앱** → 만들기.
+- 표시되는 **클라이언트 ID** 와 **클라이언트 보안 비밀번호** 를 복사 → 각각
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 
-> 사이트 계정 Secret 이 없으면 해당 사이트의 **등록만** 건너뜁니다(수집은 계속).
+### 5단계 — 리프레시 토큰 발급 (로컬에서 1회)
+```bash
+export PYTHONPATH=src
+export GOOGLE_CLIENT_ID="<4단계 클라이언트 ID>"
+export GOOGLE_CLIENT_SECRET="<4단계 보안 비밀번호>"
+python scripts/get_google_token.py     # 브라우저가 열리며 동의 → 토큰 출력
+```
+출력된 `GOOGLE_REFRESH_TOKEN=...` 값을 복사합니다.
 
-### GitHub Pages
+### 6단계 — 대상 캘린더 ID 확인 (`GOOGLE_CALENDAR_ID`)
+- 기본 개인 캘린더면 그냥 `primary` 를 쓰면 됩니다.
+- 특정 캘린더에 넣으려면 👉 <https://calendar.google.com/calendar/u/0/r/settings> →
+  왼쪽에서 캘린더 선택 → **"캘린더 통합"** 섹션의 **캘린더 ID**(예: `abcd...@group.calendar.google.com`) 복사.
+
+> 인증 설정이 번거로우면 캘린더 동기화를 건너뛰고, 게시된 `webinars.ics` 를
+> 구글 캘린더 **"기타 캘린더 → URL로 추가"** 에 붙여 구독해도 됩니다:
+> `https://leemgs.github.io/webinar-auto-registration/webinars.ics`
+
+## GitHub Secrets 등록 — 따라하기
+
+리포지토리 시크릿 페이지에서 등록합니다:
+👉 <https://github.com/leemgs/webinar-auto-registration/settings/secrets/actions>
+(또는 저장소 → **Settings → Secrets and variables → Actions → New repository secret**)
+
+**New repository secret** 버튼을 눌러 아래 이름/값을 **하나씩** 추가하세요.
+
+### 필수 — 구글 캘린더 (안 넣으면 캘린더 동기화만 스킵)
+
+| Secret 이름 | 값 | 출처 |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | OAuth 클라이언트 ID | 위 4단계 |
+| `GOOGLE_CLIENT_SECRET` | OAuth 보안 비밀번호 | 위 4단계 |
+| `GOOGLE_REFRESH_TOKEN` | 리프레시 토큰 | 위 5단계 |
+| `GOOGLE_CALENDAR_ID` | `primary` 또는 캘린더 ID | 위 6단계 |
+
+### 선택 — 사이트별 로그인 (넣은 사이트만 자동 등록)
+
+계정이 있는 사이트만 아래처럼 **`SITE_<대문자키>_USER` / `SITE_<대문자키>_PASS`** 쌍으로 추가.
+키는 [대상 사이트](#대상-사이트) 표의 소문자 키를 대문자로.
+
+| 사이트 | USER Secret | PASS Secret |
+|---|---|---|
+| 올쇼TV | `SITE_ALLSHOWTV_USER` | `SITE_ALLSHOWTV_PASS` |
+| 쉐어드IT | `SITE_SHAREDIT_USER` | `SITE_SHAREDIT_PASS` |
+| DD튜브 | `SITE_DDTUBE_USER` | `SITE_DDTUBE_PASS` |
+| e4ds | `SITE_E4DS_USER` | `SITE_E4DS_PASS` |
+| 토크아이티 | `SITE_TALKIT_USER` | `SITE_TALKIT_PASS` |
+| 두비즈 | `SITE_DUBIZ_USER` | `SITE_DUBIZ_PASS` |
+| CLOIT:ON | `SITE_CLOIT_USER` | `SITE_CLOIT_PASS` |
+
+> 사이트 계정 Secret 이 없으면 해당 사이트의 **등록만** 건너뜁니다(일정 수집은 계속).
+> 실제 등록은 `config/sites.yaml` 의 `register.enabled: true` 까지 켜야 동작합니다([아래](#자동-등록register-활성화)).
+
+### (대안) gh CLI 로 한 번에 등록
+```bash
+# 브라우저 UI 대신 터미널에서. 값은 프롬프트로 입력됨.
+gh secret set GOOGLE_CLIENT_ID     --repo leemgs/webinar-auto-registration
+gh secret set GOOGLE_CLIENT_SECRET --repo leemgs/webinar-auto-registration
+gh secret set GOOGLE_REFRESH_TOKEN --repo leemgs/webinar-auto-registration
+gh secret set GOOGLE_CALENDAR_ID   --repo leemgs/webinar-auto-registration   # 예: primary
+gh secret set SITE_DDTUBE_USER     --repo leemgs/webinar-auto-registration
+gh secret set SITE_DDTUBE_PASS     --repo leemgs/webinar-auto-registration
+```
+
+### 등록 확인 & 첫 실행
+- 등록된 시크릿 목록: 👉 <https://github.com/leemgs/webinar-auto-registration/settings/secrets/actions>
+- 수동 실행(사전등록은 dry-run): 👉 <https://github.com/leemgs/webinar-auto-registration/actions/workflows/daily.yml>
+  → **Run workflow**, 또는 CLI: `gh workflow run daily.yml`
+
+## GitHub Pages
 
 Settings → Pages → Source: **Deploy from a branch**, Branch: `main` / `/docs`.
-게시 후 `https://<user>.github.io/webinar-auto-registration/` 에서 홈페이지 확인.
+게시 후 👉 <https://leemgs.github.io/webinar-auto-registration/> 에서 홈페이지 확인.
 
 ## 자동 등록(register) 활성화
 
