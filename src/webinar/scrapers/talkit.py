@@ -29,17 +29,22 @@ class Scraper(BaseScraper):
             host_sel=".host, .company, .speaker",
         )
 
+    # talkit serves two page layouts; capture the 경품 안내 image from either:
+    #  - new (/main/events/NNN): Radix tab panel, id ends with -content-giveaway
+    #    (mounts on activation, so we click its trigger first)
+    #  - legacy (/Event/NNN): Bootstrap tab pane #goodsTab (present in the DOM)
+    PRIZE_SELECTOR = "[id$='-content-giveaway'] img, #goodsTab img"
+    PRIZE_CLICK = "[id$='-trigger-giveaway']"
+
     def fetch(self, browser):
-        # 경품 안내 is a Radix tab; click its trigger to render the panel, then read
-        # the Gift Event banner from the giveaway panel (id ends with -content-giveaway).
         items = super().fetch(browser)
         for w in items:
             try:
                 self.enrich_from_detail(
                     browser,
                     w,
-                    prize_selector="[id$='-content-giveaway'] img",
-                    click_selector="[id$='-trigger-giveaway']",
+                    prize_selector=self.PRIZE_SELECTOR,
+                    click_selector=self.PRIZE_CLICK,
                 )
             except Exception as e:
                 log.warning("[talkit] enrich failed for %s: %s", w.url, e)

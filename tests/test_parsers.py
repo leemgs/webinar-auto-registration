@@ -280,15 +280,28 @@ def test_unwrap_next_image():
     assert BaseScraper._unwrap_next_image("https://x/a.jpg") == "https://x/a.jpg"
 
 
-def test_talkit_giveaway_prize_selector():
-    # the giveaway tab panel's image, with a Next.js proxy URL, is unwrapped
+def test_talkit_giveaway_prize_selector_new_layout():
+    # new /main/events/NNN: Radix giveaway panel; Next.js proxy URL is unwrapped
     sc = get_scraper("talkit", {"base_url": "https://talkit.tv"})
     soup = sc.soup(
         '<div id="radix-x-content-giveaway">'
         '<img src="/main/_next/image?url=https%3A%2F%2Ftalkit.tv%2Fuserfiles%2Fimages%2Fgift.jpg&w=1920"></div>'
     )
-    assert sc.select_prize_images(soup, "[id$='-content-giveaway'] img") == [
+    assert sc.select_prize_images(soup, sc.PRIZE_SELECTOR) == [
         "https://talkit.tv/userfiles/images/gift.jpg"
+    ]
+
+
+def test_talkit_giveaway_prize_selector_legacy_layout():
+    # legacy /Event/NNN: Bootstrap #goodsTab pane (dedupes responsive duplicate)
+    sc = get_scraper("talkit", {"base_url": "https://talkit.tv"})
+    soup = sc.soup(
+        '<div id="goodsTab"><img src="/userfiles/images/file1.jpg">'
+        '<img src="/userfiles/images/file1.jpg"></div>'
+        '<div id="joinTab"><img src="/userfiles/images/steps.jpg"></div>'
+    )
+    assert sc.select_prize_images(soup, sc.PRIZE_SELECTOR) == [
+        "https://talkit.tv/userfiles/images/file1.jpg"
     ]
 
 
