@@ -144,6 +144,8 @@ a:hover { text-decoration: underline; }
 
 /* list view */
 #list-view { display: flex; flex-direction: column; gap: 18px; }
+.list-day.is-today { scroll-margin-top: 12px; }
+.list-day.is-today h3 { color: var(--accent); border-bottom-color: var(--accent); }
 .list-day h3 {
   margin: 0 0 8px; font-size: 0.95rem; color: var(--text-muted);
   border-bottom: 1px solid var(--border); padding-bottom: 6px;

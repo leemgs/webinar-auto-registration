@@ -182,13 +182,23 @@ function renderList() {
     (groups[k] = groups[k] || []).push(w);
   }
 
+  const todayKey = dayKey(new Date());
+  let anchored = false;
   for (const k of Object.keys(groups).sort()) {
     const wrap = document.createElement("div");
     wrap.className = "list-day";
+    // mark the first group on/after today so we can auto-scroll there
+    const isAnchor = !anchored && k >= todayKey;
+    if (isAnchor) {
+      wrap.id = "list-today-anchor";
+      wrap.classList.add("is-today");
+      anchored = true;
+    }
     const d = parseDate(groups[k][0].start_kst);
     const wd = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
     const h = document.createElement("h3");
     h.textContent = `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} (${wd})`;
+    if (k === todayKey) h.textContent += "  · 오늘";
     wrap.appendChild(h);
 
     for (const w of groups[k]) {
@@ -290,6 +300,14 @@ function render() {
   }
 }
 
+// scroll the list so today's (or the nearest upcoming) group is at the top
+function scrollListToToday() {
+  requestAnimationFrame(() => {
+    const el = document.getElementById("list-today-anchor");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
@@ -304,6 +322,7 @@ function bindEvents() {
       document.querySelectorAll(".view-toggle button").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       render();
+      if (state.view === "list") scrollListToToday();
     };
   });
   $("#prev-month").onclick = () => { state.cursor.setMonth(state.cursor.getMonth() - 1); render(); };
