@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-13T09:08:11.427972+09:00",
-  "count": 29,
+  "generated_at": "2026-07-14T09:05:11.379877+09:00",
+  "count": 30,
   "webinars": [
     {
       "source": "ddtube",
@@ -404,7 +404,9 @@
       "tags": [],
       "registered": false,
       "prizes": [],
-      "prize_images": [],
+      "prize_images": [
+        "https://img.etnews.com/allshowtv/tmp_upload/2026/07/13/main_13175932197068.jpg"
+      ],
       "id": "allshowtv-3ab134292b06"
     },
     {
@@ -480,7 +482,7 @@
     },
     {
       "source": "talkit",
-      "title": "쿠버네티스, 도입보다 운영이 더 어렵다: Nutanix NKP 기반 현실적 운영 전략 [뉴타닉스, 씨티아이앤씨, 다우데이타]",
+      "title": "쿠버네티스, 도입보다 운영이 더 어렵다: NKP 기반 현실적 운영 전략 [Nutanix, 씨티아이앤씨, 다우데이타]",
       "url": "https://talkit.tv/main/events/3706",
       "start_kst": "2026-07-29T14:00:00+09:00",
       "end_kst": "2026-07-29T15:00:00+09:00",
@@ -495,6 +497,25 @@
         "https://talkit.tv/userfiles/images/file1783707094581.jpg"
       ],
       "id": "talkit-632002031648"
+    },
+    {
+      "source": "ddtube",
+      "title": "[한국IBM] 데이터 보호부터 자율 운영까지, 스토리지가 AI를 입다",
+      "url": "https://www.ddtube.co.kr/d2111/",
+      "start_kst": "2026-08-13T14:00:00+09:00",
+      "end_kst": "2026-08-13T15:00:00+09:00",
+      "host": "",
+      "register_url": "https://www.ddtube.co.kr/d2111/",
+      "description": "",
+      "thumbnail": "https://www.ddtube.co.kr/wp-content/uploads/2026/07/260813_IBM-FlashSystem_썸네일-2560-1-1024x576.png",
+      "tags": [],
+      "registered": false,
+      "prizes": [],
+      "prize_images": [
+        "https://www.ddtube.co.kr/wp-content/uploads/2026/07/260813_IBM-FlashSystem_event.png",
+        "https://www.ddtube.co.kr/wp-content/uploads/2026/07/260813_IBM-FlashSystem_참여방법.jpg"
+      ],
+      "id": "ddtube-e3df7d8f039c"
     },
     {
       "source": "allshowtv",
