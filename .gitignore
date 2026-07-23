@@ -5,6 +5,8 @@
 # Local per-site credentials (never commit; repo is public)
 config/accounts.yaml
 config/accounts.local.yaml
+# Local Google Calendar accounts (never commit; repo is public)
+config/google.yaml
 
 # Python
 __pycache__/

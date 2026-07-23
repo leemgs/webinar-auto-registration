@@ -1,12 +1,15 @@
 """Configuration + secrets loading."""
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+log = logging.getLogger(__name__)
 
 try:  # optional: load .env for local runs
     from dotenv import load_dotenv
@@ -24,6 +27,7 @@ DOCS_DIR = ROOT / "docs"
 SITES_YAML = CONFIG_DIR / "sites.yaml"
 PRIZES_OVERRIDE_YAML = CONFIG_DIR / "prizes_override.yaml"
 ACCOUNTS_YAML = CONFIG_DIR / "accounts.yaml"  # local, git-ignored (see accounts.example.yaml)
+GOOGLE_YAML = CONFIG_DIR / "google.yaml"  # local, git-ignored (see google.example.yaml)
 WEBINARS_JSON = DATA_DIR / "webinars.json"
 
 
@@ -84,3 +88,78 @@ def google_config() -> dict[str, str | None]:
 def has_google_config() -> bool:
     g = google_config()
     return all(g[k] for k in ("client_id", "client_secret", "refresh_token"))
+
+
+_GOOGLE_REQUIRED = ("client_id", "client_secret", "refresh_token")
+
+
+def _normalize_google_account(name: str, raw: Any) -> dict[str, Any] | None:
+    """Validate one {name: {...}} entry; None if it can't be used."""
+    if not isinstance(raw, dict):
+        return None
+    acct: dict[str, Any] = {
+        "name": str(name),
+        "client_id": raw.get("client_id"),
+        "client_secret": raw.get("client_secret"),
+        "refresh_token": raw.get("refresh_token"),
+        "calendar_id": raw.get("calendar_id") or "primary",
+    }
+    if "only_registered" in raw:
+        acct["only_registered"] = bool(raw["only_registered"])
+    if not all(acct[k] for k in _GOOGLE_REQUIRED):
+        return None
+    return acct
+
+
+def load_google_accounts() -> list[dict[str, Any]]:
+    """Return the Google Calendar target accounts, in declaration order.
+
+    Each account: {name, client_id, client_secret, refresh_token, calendar_id,
+    [only_registered]}. Sources, first definition of a name wins:
+      1. GOOGLE_ACCOUNTS_YAML env var — inline YAML {name: {...}} (CI Secrets)
+      2. config/google.yaml — local, git-ignored (see google.example.yaml)
+      3. legacy single-account env vars (GOOGLE_CLIENT_ID/... ) as "default"
+    Entries missing client_id/client_secret/refresh_token are skipped.
+    """
+    sources: list[dict[str, Any]] = []
+    inline = os.getenv("GOOGLE_ACCOUNTS_YAML")
+    if inline:
+        try:
+            parsed = yaml.safe_load(inline)
+            if isinstance(parsed, dict):
+                sources.append(parsed)
+            else:
+                log.warning("GOOGLE_ACCOUNTS_YAML must be a YAML mapping — ignored")
+        except yaml.YAMLError as e:
+            log.warning("GOOGLE_ACCOUNTS_YAML is not valid YAML: %s", e)
+    if GOOGLE_YAML.exists():
+        with open(GOOGLE_YAML, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if isinstance(data, dict):
+            sources.append(data)
+
+    accounts: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for src in sources:
+        for name, raw in src.items():
+            if name in seen:
+                continue
+            acct = _normalize_google_account(name, raw)
+            if acct is None:
+                log.warning("google account %r incomplete — skipped", name)
+                continue
+            seen.add(str(name))
+            accounts.append(acct)
+
+    if "default" not in seen and has_google_config():
+        g = google_config()
+        accounts.append(
+            {
+                "name": "default",
+                "client_id": g["client_id"],
+                "client_secret": g["client_secret"],
+                "refresh_token": g["refresh_token"],
+                "calendar_id": g["calendar_id"] or "primary",
+            }
+        )
+    return accounts

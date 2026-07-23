@@ -1,8 +1,11 @@
-"""Sync registered webinars to Google Calendar via an OAuth refresh token.
+"""Sync registered webinars to Google Calendar via OAuth refresh tokens.
 
-Idempotent: each event uses a deterministic id derived from the webinar id, so
-re-runs update rather than duplicate. Only webinars marked `registered` (or all
-upcoming, via --all) are synced.
+Targets one or more user-specified Google accounts (config/google.yaml,
+GOOGLE_ACCOUNTS_YAML secret, or the legacy GOOGLE_* env vars — see
+config.load_google_accounts). Idempotent: each event uses a deterministic id
+derived from the webinar id, so re-runs update rather than duplicate. Only
+webinars marked `registered` (or all upcoming, via --all or a per-account
+`only_registered: false`) are synced.
 """
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ import sys
 from datetime import datetime
 
 from . import storage
-from .config import google_config, has_google_config
+from .config import load_google_accounts
 from .models import Webinar
 
 log = logging.getLogger(__name__)
@@ -29,16 +32,15 @@ PRIZE_LABELS = {
 }
 
 
-def _service():
+def _service(account: dict):
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
-    g = google_config()
     creds = Credentials(
         token=None,
-        refresh_token=g["refresh_token"],
-        client_id=g["client_id"],
-        client_secret=g["client_secret"],
+        refresh_token=account["refresh_token"],
+        client_id=account["client_id"],
+        client_secret=account["client_secret"],
         token_uri=TOKEN_URI,
         scopes=SCOPES,
     )
@@ -46,9 +48,10 @@ def _service():
 
 
 def _event_id(webinar: Webinar) -> str:
-    # Google event ids: lowercase a-v0-9, 5-1024 chars. Hash the webinar id.
+    # Google event ids: base32hex only (a-v, 0-9), 5-1024 chars — 'w' is NOT
+    # allowed, so the prefix must stay within a-v. Hash the webinar id.
     base = re.sub(r"[^a-v0-9]", "", webinar.id.lower())
-    return ("wb" + base)[:100] or "wb0000"
+    return ("vb" + base)[:100].ljust(5, "0")
 
 
 def _describe(webinar: Webinar) -> str:
@@ -88,47 +91,81 @@ def _to_event(webinar: Webinar) -> dict:
     return ev
 
 
-def sync(only_registered: bool = True) -> int:
-    if not has_google_config():
-        log.warning("Google config incomplete — skipping calendar sync")
-        return 0
-    webinars = [w for w in storage.load_webinars() if storage.is_upcoming(w)]
-    if only_registered:
-        webinars = [w for w in webinars if w.registered]
-    if not webinars:
-        log.info("no webinars to sync")
-        return 0
-
-    svc = _service()
-    cal_id = google_config()["calendar_id"]
+def _upsert(svc, calendar_id: str, name: str, webinars: list[Webinar]) -> int:
     synced = 0
     for wb in webinars:
         body = _to_event(wb)
         eid = body["id"]
         try:
-            svc.events().update(calendarId=cal_id, eventId=eid, body=body).execute()
+            svc.events().update(calendarId=calendar_id, eventId=eid, body=body).execute()
             synced += 1
         except Exception:
             # not found -> insert
             try:
-                svc.events().insert(calendarId=cal_id, body=body).execute()
+                svc.events().insert(calendarId=calendar_id, body=body).execute()
                 synced += 1
             except Exception as e:
-                log.warning("calendar upsert failed for %s: %s", wb.title, e)
-    log.info("calendar synced %d events", synced)
+                log.warning("[%s] calendar upsert failed for %s: %s", name, wb.title, e)
     return synced
+
+
+def sync(only_registered: bool = True, account_names: list[str] | None = None) -> int:
+    """Upsert upcoming webinars into every configured Google account's calendar.
+
+    `account_names` limits the run to those accounts; a per-account
+    `only_registered` setting overrides the global flag. Returns the total
+    number of events written across all accounts.
+    """
+    accounts = load_google_accounts()
+    if account_names:
+        known = {a["name"] for a in accounts}
+        for missing in [n for n in account_names if n not in known]:
+            log.warning("unknown google account %r (configured: %s)", missing, sorted(known))
+        accounts = [a for a in accounts if a["name"] in set(account_names)]
+    if not accounts:
+        log.warning(
+            "no Google account configured — skipping calendar sync "
+            "(see config/google.example.yaml or GOOGLE_* env vars)"
+        )
+        return 0
+
+    upcoming = [w for w in storage.load_webinars() if storage.is_upcoming(w)]
+    total = 0
+    for acct in accounts:
+        webinars = upcoming
+        if acct.get("only_registered", only_registered):
+            webinars = [w for w in webinars if w.registered]
+        if not webinars:
+            log.info("[%s] no webinars to sync", acct["name"])
+            continue
+        try:
+            svc = _service(acct)
+        except Exception as e:
+            log.warning("[%s] google auth failed: %s", acct["name"], e)
+            continue
+        synced = _upsert(svc, acct["calendar_id"], acct["name"], webinars)
+        log.info("[%s] calendar synced %d events -> %s", acct["name"], synced, acct["calendar_id"])
+        total += synced
+    log.info("calendar synced %d events across %d account(s)", total, len(accounts))
+    return total
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Sync webinars to Google Calendar")
     p.add_argument("--all", action="store_true", help="sync all upcoming, not just registered")
+    p.add_argument(
+        "--account",
+        action="append",
+        metavar="NAME",
+        help="sync only this configured account (repeatable; default: all accounts)",
+    )
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",
     )
-    sync(only_registered=not args.all)
+    sync(only_registered=not args.all, account_names=args.account)
     return 0
 
 

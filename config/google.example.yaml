@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# 구글 캘린더 대상 계정 예시.  ➜  이 파일을 config/google.yaml 로 복사해서 채우세요.
+#
+#   cp config/google.example.yaml config/google.yaml
+#
+# ⚠️ config/google.yaml 은 .gitignore 로 제외되어 커밋되지 않습니다.
+#    (이 저장소는 공개이므로 토큰을 커밋되는 파일에 절대 넣지 마세요.)
+#
+# 계정을 원하는 이름으로 여러 개 지정하면, calendar_sync 가 각 계정의 캘린더에
+# 모두 upsert 합니다. 특정 계정만 돌리려면: python -m webinar.calendar_sync --account work
+#
+# 각 계정의 client_id / client_secret / refresh_token 발급 방법은 README 의
+# "구글 캘린더 설정" 절 참고 (scripts/get_google_token.py 로 계정별 토큰 발급).
+#
+# 우선순위: GOOGLE_ACCOUNTS_YAML 환경변수(GitHub Secrets, 같은 YAML 형식) >
+#           이 파일 > 단일 계정 환경변수(GOOGLE_CLIENT_ID 등, "default" 계정).
+# ---------------------------------------------------------------------------
+
+personal:
+  client_id: "xxxxx.apps.googleusercontent.com"
+  client_secret: "GOCSPX-..."
+  refresh_token: "1//0g..."
+  calendar_id: "primary"          # 생략 시 primary (기본 개인 캘린더)
+
+work:
+  client_id: "yyyyy.apps.googleusercontent.com"
+  client_secret: "GOCSPX-..."
+  refresh_token: "1//0g..."
+  calendar_id: "abcd1234@group.calendar.google.com"
+  only_registered: false          # 이 계정에는 등록 여부와 무관하게 전체 일정 sync

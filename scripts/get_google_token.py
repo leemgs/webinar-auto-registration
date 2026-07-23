@@ -12,7 +12,11 @@ Run:
     python scripts/get_google_token.py
 
 It opens a browser for consent, then prints the refresh token. Copy it into
-your .env (GOOGLE_REFRESH_TOKEN) or a GitHub Actions secret.
+your .env (GOOGLE_REFRESH_TOKEN), a GitHub Actions secret, or — to target a
+specific/multiple Google account(s) — a named entry in config/google.yaml
+(the ready-to-paste snippet is printed too; see config/google.example.yaml).
+Re-run once per Google account you want to sync into, logging in as that
+account in the browser each time.
 """
 from __future__ import annotations
 
@@ -43,9 +47,17 @@ def main() -> int:
     flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
     creds = flow.run_local_server(port=0, prompt="consent")
 
+    refresh_token = creds.refresh_token or "<none returned>"
     print("\n=== SUCCESS ===")
-    print("GOOGLE_REFRESH_TOKEN=" + (creds.refresh_token or "<none returned>"))
+    print("GOOGLE_REFRESH_TOKEN=" + refresh_token)
     print("\nAdd this to your .env or GitHub Actions secrets.")
+    print("\nOr add a named account to config/google.yaml (multi-account sync):")
+    print("---")
+    print("my-account:                      # 원하는 계정 이름으로 변경")
+    print(f'  client_id: "{client_id}"')
+    print(f'  client_secret: "{client_secret}"')
+    print(f'  refresh_token: "{refresh_token}"')
+    print('  calendar_id: "primary"')
     return 0
 
 
