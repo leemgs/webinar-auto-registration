@@ -1,7 +1,8 @@
 # webinar
 
-국내 IT 웨비나를 **매일 자동으로 수집·등록**하고, **구글 캘린더에 추가**하며,
-**월별 일정 + 경품 정보 홈페이지**(GitHub Pages)로 공개하는 프로젝트입니다.
+국내 IT 웨비나를 **매일 자동으로 수집·등록**하고, **사용자가 지정한 구글 계정
+(여러 개 가능)의 캘린더에 자동 sync**하며, **월별 일정 + 경품 정보 홈페이지**
+(GitHub Pages)로 공개하는 프로젝트입니다.
 
 ---
 
@@ -29,7 +30,7 @@ flowchart LR
 
     subgraph OUT["🎯 활용"]
         RG["📝 registrar<br/>사전등록"]
-        CAL["📅 calendar_sync<br/>구글 캘린더"]
+        CAL["📅 calendar_sync<br/>구글 캘린더<br/>(지정 계정 · 다중)"]
         WEB["🌐 docs/ 홈페이지<br/>+ webinars.ics"]
     end
 
@@ -57,7 +58,7 @@ flowchart LR
 | 🎁 **경품 추출** | [`prizes.py`](src/webinar/prizes.py) | 설문/질문/상담/참석 경품 키워드 추출 + 수동 오버라이드 병합 |
 | 🗃️ **정리** | [`storage.py`](src/webinar/storage.py) | 기존 데이터와 병합(등록 상태·경품 보존), 60일 지난 항목 정리 |
 | 📝 **등록** | [`registrar.py`](src/webinar/registrar.py) | (활성 사이트) 로그인 후 사전등록, 멱등 |
-| 📅 **캘린더** | [`calendar_sync.py`](src/webinar/calendar_sync.py) | 구글 캘린더 upsert(중복 없음) + [`ics_export.py`](src/webinar/ics_export.py) 백업 |
+| 📅 **캘린더** | [`calendar_sync.py`](src/webinar/calendar_sync.py) | 지정한 구글 계정(들)의 캘린더에 upsert(중복 없음, [계정 설정](#원하는-구글-계정-지정--여러-계정에-동시-sync--configgoogleyaml)) + [`ics_export.py`](src/webinar/ics_export.py) 백업 |
 | 🌐 **공개** | [`docs/`](docs) | 월별 달력/목록·필터·경품·구글캘린더 링크 홈페이지 (GitHub Pages) |
 | ⏰ **자동화** | [`daily.yml`](.github/workflows/daily.yml) | 매일 08:00 KST cron으로 위 전 과정 실행·커밋 |
 
@@ -107,7 +108,7 @@ sequenceDiagram
     PP->>RG: (enabled·계정 있는 사이트) 등록 요청
     RG->>ST: 로그인 → 사전등록 제출
     RG->>DB: registered=true 기록
-    PP->>GC: 등록 웨비나 캘린더 upsert(멱등)
+    PP->>GC: 등록 웨비나를 지정 계정별 캘린더에 upsert(멱등)
     PP->>PG: webinars.json / webinars.ics 갱신 후 커밋
     Note over PG: GitHub Pages가 홈페이지 자동 갱신
 ```
@@ -115,7 +116,7 @@ sequenceDiagram
 1. **수집** — `pipeline.py`가 7개 사이트를 스크래핑하고 경품을 추출합니다.
 2. **정리** — 기존 `data/webinars.json`과 병합(등록 상태·수동 경품 보존), 60일 지난 항목 정리.
 3. **등록** — 계정이 있고 `register.enabled: true`인 사이트에 로그인 후 사전등록(멱등).
-4. **캘린더** — 등록 웨비나를 구글 캘린더에 upsert하고 `webinars.ics` 백업 피드 생성.
+4. **캘린더** — 등록 웨비나를 지정한 구글 계정(들)의 캘린더에 upsert하고 `webinars.ics` 백업 피드 생성.
 5. **공개** — `docs/`의 데이터를 갱신·커밋 → GitHub Pages 홈페이지 자동 반영.
 
 > 홈페이지(`docs/`)는 `webinars.json`을 읽어 **월별 달력 / 목록** 뷰, **출처·경품 필터**,
@@ -314,6 +315,8 @@ gh secret set GOOGLE_CLIENT_ID     --repo leemgs/webinar
 gh secret set GOOGLE_CLIENT_SECRET --repo leemgs/webinar
 gh secret set GOOGLE_REFRESH_TOKEN --repo leemgs/webinar
 gh secret set GOOGLE_CALENDAR_ID   --repo leemgs/webinar   # 예: primary
+# 여러 구글 계정에 sync 하려면 google.yaml 내용을 통째로 하나의 시크릿에:
+gh secret set GOOGLE_ACCOUNTS_YAML --repo leemgs/webinar < config/google.yaml
 gh secret set SITE_DDTUBE_USER     --repo leemgs/webinar
 gh secret set SITE_DDTUBE_PASS     --repo leemgs/webinar
 ```
@@ -376,7 +379,7 @@ src/webinar/
 scripts/           get_google_token.py
 data/webinars.json 수집 결과(진실의 원천)
 docs/              GitHub Pages 홈페이지
-tests/             오프라인 파서 테스트
+tests/             오프라인 테스트 (파서 + 캘린더 sync, 브라우저·네트워크 불필요)
 ```
 
 ## 새 사이트 추가 / 스크래퍼 관리
